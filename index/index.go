@@ -69,3 +69,17 @@ func (this *Index) Get(name, dir string) *Repo {
 func (this *Index) List() []*Repo {
 	return this.Repos
 }
+
+func (this *Index) Remove(name, dir string) bool {
+	repos := make([]*Repo, 0)
+	found := false
+	for _, repo := range this.Repos {
+		if repo.Name != name && repo.Directory != dir {
+			repos = append(repos, repo)
+		} else {
+			found = true
+		}
+	}
+	this.Repos = repos
+	return found
+}

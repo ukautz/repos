@@ -1,24 +1,49 @@
 package commands
 
 import (
+	"fmt"
 	"github.com/ukautz/cli"
+	"sync"
+	"github.com/ukautz/repos/index"
 )
+
+var (
+	states   map[string]string
+	stateMux = new(sync.Mutex)
+)
+
+func setState(name, state string) {
+	stateMux.Lock()
+	defer stateMux.Unlock()
+	states[name] = state
+}
 
 func runList(c *cli.Cli, o *cli.Command) {
 	if idx, _, err := readIndex(o); err != nil {
 		c.Output.Die(err.Error())
 	} else {
-		c.Output.Printf("Found %d repos:\n", len(idx.Repos))
+		c.Output.Printf("Gathering states of %d repos\n", len(idx.Repos))
+		var wg sync.WaitGroup
+		states = make(map[string]string)
 		for _, repo := range idx.Repos {
-			if hdl := repo.Handler(); hdl != nil {
-				if state, err := hdl.State(repo); err != nil {
-					c.Output.Printf("%-30s: %s (%s)\n", repo.Name, state, err)
+			wg.Add(1)
+			go func(repo *index.Repo) {
+				defer wg.Done()
+				if hdl := repo.Handler(); hdl != nil {
+					if state, err := hdl.State(repo); err != nil {
+						setState(repo.Name, fmt.Sprintf("%s (%s)", state, err))
+					} else {
+						setState(repo.Name, string(state))
+					}
 				} else {
-					c.Output.Printf("%-30s: %s\n", repo.Name, state)
+					setState(repo.Name, fmt.Sprintf("(unknown type \"%s\")", repo.Type))
 				}
-			} else {
-				c.Output.Printf("%-30s: Unknown type %s\n", repo.Name, repo.Type)
-			}
+			}(repo)
+		}
+		wg.Wait()
+		c.Output.Printf("--\n")
+		for name, state := range states {
+			c.Output.Printf("%-30s %s\n", name, state)
 		}
 	}
 }

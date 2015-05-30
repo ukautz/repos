@@ -3,8 +3,6 @@ package commands
 import (
 	"github.com/ukautz/cli"
 	"path/filepath"
-	"encoding/json"
-	"io/ioutil"
 )
 
 func runAdd(c *cli.Cli, o *cli.Command) {
@@ -23,10 +21,8 @@ func runAdd(c *cli.Cli, o *cli.Command) {
 		}
 		if err := idx.Add(name, abs, typ); err != nil {
 			c.Output.Die("Failed to add \"%s\" in \"%s\": %s", name, dir, err)
-		} else if raw, err := json.MarshalIndent(idx, "", "  "); err != nil {
-			c.Output.Die("Failed to marshal index into JSON: %s", err)
-		} else if err := ioutil.WriteFile(store, raw, 0600); err != nil {
-			c.Output.Die("Failed to write index to \"%s\": %s", store, err)
+		} else if err = storeIndex(idx, store); err != nil {
+			c.Output.Die(err.Error())
 		} else {
 			c.Output.Printf("Successfully added directory \"%s\" as \"%s\"\n", abs, name)
 		}

@@ -27,6 +27,16 @@ func readIndex(o *cli.Command) (*index.Index, string, error) {
 	}
 }
 
+func storeIndex(idx *index.Index, store string) error {
+	if raw, err := json.MarshalIndent(idx, "", "  "); err != nil {
+		return fmt.Errorf("Failed to marshal index into JSON: %s", err)
+	} else if err := ioutil.WriteFile(store, raw, 0600); err != nil {
+		return fmt.Errorf("Failed to write index to \"%s\": %s", store, err)
+	} else {
+		return nil
+	}
+}
+
 var (
 	Commands = make([]*cli.Command, 0)
 )
