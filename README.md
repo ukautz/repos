@@ -48,6 +48,6 @@ Well, this is the primary function of this tool: Check if any of your repos have
 State
 -----
 
-Currently only **Git** is supported. Since I don't use anything else atm... Check out the [Repo interface](blob/master/common/repo.go) if you feel like contributing.
+Currently only **Git** is supported. Since I don't use anything else atm... Check out the [Repo interface](common/repo.go) if you feel like contributing.
 
 
