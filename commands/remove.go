@@ -1,27 +1,34 @@
 package commands
 
 import (
-	"github.com/ukautz/cli"
+	"fmt"
+	"github.com/ukautz/repos/common"
+	"gopkg.in/ukautz/clif.v0"
+	"path/filepath"
 )
 
-func runRemove(c *cli.Cli, o *cli.Command) {
-	if idx, store, err := readIndex(o); err != nil {
-		c.Output.Die(err.Error())
-	} else {
-		name := o.Argument("name").String()
-		if !idx.Remove(name, "") {
-			c.Output.Die("No repo named \"%s\" registered", name)
-		} else if err = storeIndex(idx, store); err != nil {
-			c.Output.Die(err.Error())
-		} else {
-			c.Output.Printf("Successfully removed repo \"%s\"\n", name)
+func cmdRemove() *clif.Command {
+	cb := func(c *clif.Command, out clif.Output, lst *common.List) error {
+		name := c.Argument("name").String()
+		if lst.Get(name) == "" {
+			if abs, err := filepath.Abs(name); err != nil {
+				return fmt.Errorf("Found no named watch for %s, so tried directory but could not get abs path: %s\n", name, err)
+			} else if n := lst.Watched(abs); n == "" {
+				return fmt.Errorf("Found no named watch nor any path for %s\n", name)
+			} else {
+				name = n
+			}
 		}
+		lst.Remove(name)
+		out.Printf("<success>Removed %s from watch list<reset>\n", name)
+		return lst.Persist()
 	}
+
+	return clif.NewCommand("remove", "Add a repository from the watch list", cb).
+		NewArgument("name", "Name or directory of a repo which shall be removed from watch", "", true, false)
+
 }
 
 func init() {
-	cmd := cli.NewCommand("remove", "Remove a named repository from index", runRemove)
-	addCommandDefaults(cmd)
-	cmd.NewArgument("name", "Name of the to-be-removed repo", "", true, false)
-	Commands = append(Commands, cmd)
+	Commands = append(Commands, cmdRemove)
 }

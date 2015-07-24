@@ -1,39 +1,46 @@
 package commands
 
 import (
-	"github.com/ukautz/cli"
+	"fmt"
+	"github.com/ukautz/repos/common"
+	"gopkg.in/ukautz/clif.v0"
 	"path/filepath"
 )
 
-func runAdd(c *cli.Cli, o *cli.Command) {
-	if dir := o.Argument("directory").String(); dir == "" {
-		c.Output.Die("Missing directory")
-	} else if typ := o.Option("type").String(); typ == "" {
-		c.Output.Die("Invalid empty --type")
-	} else if abs, err := filepath.Abs(dir); err != nil {
-		c.Output.Die("Could not get absolute file path from \"%s\": %s", dir, err)
-	} else if idx, store, err := readIndex(o); err != nil {
-		c.Output.Die(err.Error())
-	} else {
-		name := o.Argument("name").String()
-		if name == "" {
-			name = filepath.Base(abs)
+func cmdAdd() *clif.Command {
+	cb := func(c *clif.Command, in clif.Input, out clif.Output, lst *common.List) error {
+		name := c.Argument("name").String()
+		directory := c.Argument("directory").String()
+		abs, err := filepath.Abs(directory)
+		if err != nil {
+			return err
 		}
-		if err := idx.Add(name, abs, typ); err != nil {
-			c.Output.Die("Failed to add \"%s\" in \"%s\": %s", name, dir, err)
-		} else if err = storeIndex(idx, store); err != nil {
-			c.Output.Die(err.Error())
+		out.Printf("Adding repository <headline>%s<reset> as <subline>%s<reset>\n", abs, name)
+		if p := lst.Get(name); p != "" {
+			out.Printf("<warn>There is a watch \"%s\" witch watches \"%s\"<reset>\n", name, p)
+			if !in.Confirm("<query>Overwrite?<reset> ") {
+				out.Printf("  Not overwriting. Stop.\n")
+				return nil
+			} else {
+				lst.Remove(name)
+			}
+		}
+		if n := lst.Watched(abs); n != "" {
+			return fmt.Errorf("Directory \"%s\" is already watched (%s)", abs, n)
+		} else if w, err := lst.Add(name, abs); err != nil {
+			return err
 		} else {
-			c.Output.Printf("Successfully added directory \"%s\" as \"%s\"\n", abs, name)
+			out.Printf("  Type: <info>%s<reset>\n", w.Type())
+			return lst.Persist()
 		}
 	}
+
+	return clif.NewCommand("add", "Add a new repository to the watch list", cb).
+		NewArgument("name", "Name of the repo, so you can remember what it was", "", true, false).
+		NewArgument("directory", "Path to directory of the repo. Defaults to current directory.", ".", true, false)
+
 }
 
 func init() {
-	cmd := cli.NewCommand("add", "Add directory to list of repositories", runAdd)
-	addCommandDefaults(cmd)
-	cmd.NewArgument("directory", "Path to directory", ".", true, false)
-	cmd.NewArgument("name", "Name the repo is stored under", "", false, false)
-	cmd.NewOption("type", "t", "Type of repository", "git", false, false)
-	Commands = append(Commands, cmd)
+	Commands = append(Commands, cmdAdd)
 }
