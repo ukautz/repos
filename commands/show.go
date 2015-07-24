@@ -28,7 +28,7 @@ func cmdShow() *clif.Command {
 		}
 	}
 
-	return clif.NewCommand("show", "List all registerd watches", cb)
+	return clif.NewCommand("show", "Show all registered repos", cb)
 }
 
 func init() {

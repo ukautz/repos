@@ -24,7 +24,7 @@ func cmdRemove() *clif.Command {
 		return lst.Persist()
 	}
 
-	return clif.NewCommand("remove", "Add a repository from the watch list", cb).
+	return clif.NewCommand("remove", "Remove a registered repository", cb).
 		NewArgument("name", "Name or directory of a repo which shall be removed from watch", "", true, false)
 
 }

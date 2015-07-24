@@ -273,7 +273,7 @@ func (this *Git) exec(args ...string) ([]string, error) {
 }
 
 func init() {
-	watches = append(watches, func(path, name string) (Watch, error) {
+	watches = append(watches, func(path, name string) (Repo, error) {
 		git := filepath.Join(path, ".git")
 		if stat, err := os.Stat(git); err != nil {
 			if os.IsNotExist(err) {

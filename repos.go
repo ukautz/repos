@@ -5,14 +5,14 @@ package main
 import (
 	"github.com/ukautz/repos/commands"
 	"github.com/ukautz/repos/common/debug"
-	"github.com/ukautz/repos/list"
+	"github.com/ukautz/repos/common"
 	"gopkg.in/ukautz/clif.v0"
 	"os"
 	"path/filepath"
 )
 
 var (
-	Version = "1.0.0"
+	Version = "0.5.0"
 )
 
 func addDefaultOptions(cli *clif.Cli) {
@@ -22,7 +22,7 @@ func addDefaultOptions(cli *clif.Cli) {
 	storeOpt := clif.NewOption("store", "s", "Path JSON file storing the registered repos", storeDefault, true, false).
 		SetEnv("REPOS_STORE").
 		SetParse(func(name, value string) (string, error) {
-		lst := list.New(value)
+		lst := common.NewList(value)
 		cli.Register(lst)
 		if err := lst.Refresh(); err != nil {
 			return value, err

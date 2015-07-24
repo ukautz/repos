@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sort"
@@ -16,72 +17,81 @@ type (
 		path string
 
 		// repos contain a (name => path) map of all watched repos
-		watches map[string]string
+		repos map[string]string
 	}
 
-	// Repo represents a single named repo, which is in a directory and of a type (eg Git)
-	Repo struct {
+	// Info represents full information about a single repo
+	Info struct {
 		Name, Path, Type string
 		Error            error
-		Watch            Watch
+		Repo             Repo
 	}
 )
 
-// New constructs new List instance
-func New(path string) *List {
+// NewList constructs new List instance
+func NewList(path string) *List {
 	return &List{
-		path:    path,
-		watches: make(map[string]string),
+		path:  path,
+		repos: make(map[string]string),
 	}
 }
 
 // Add includes given named repo under path to watches
-func (this *List) Add(name, path string) (Watch, error) {
-	if w, err := Factory(path, name); err != nil {
+func (this *List) Add(name, path string) (Repo, error) {
+	if w, err := NewRepo(path, name); err != nil {
 		return nil, err
 	} else {
-		this.watches[name] = path
+		this.repos[name] = path
 		return w, nil
 	}
 }
 
 // Get returns path of registered repo or empty string
 func (this *List) Get(name string) string {
-	if path, ok := this.watches[name]; ok {
+	if path, ok := this.repos[name]; ok {
 		return path
 	} else {
 		return ""
 	}
 }
 
-// Get returns path of registered repo or empty string
-func (this *List) Info(name string) (Watch, error) {
-	if path, ok := this.watches[name]; ok {
-		return path
+// Info returns Repo
+func (this *List) Info(name string) (*Info, error) {
+	if path, ok := this.repos[name]; ok {
+		if repo, err := NewRepo(path, name); err != nil {
+			return nil, err
+		} else {
+			return &Info{
+				Name: name,
+				Path: path,
+				Type: repo.Type(),
+				Repo: repo,
+			}, nil
+		}
 	} else {
-		return ""
+		return nil, fmt.Errorf("Repo not found")
 	}
 }
 
-// List returns list of all registered watches.
-func (this *List) List() []*Repo {
+// List returns list of all registered repos.
+func (this *List) List() []*Info {
 	names := []string{}
-	for name, _ := range this.watches {
+	for name, _ := range this.repos {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	named := make([]*Repo, len(names))
+	named := make([]*Info, len(names))
 	for i, name := range names {
-		named[i] = &Repo{
+		named[i] = &Info{
 			Name: name,
-			Path: this.watches[name],
+			Path: this.repos[name],
 		}
-		if watch, err := Factory(this.watches[name], name); err != nil {
+		if watch, err := NewRepo(this.repos[name], name); err != nil {
 			named[i].Type = "UNDEF"
 			named[i].Error = err
 		} else {
 			named[i].Type = watch.Type()
-			named[i].Watch = watch
+			named[i].Repo = watch
 		}
 	}
 	return named
@@ -89,7 +99,7 @@ func (this *List) List() []*Repo {
 
 // Persist writes watched repos to storage
 func (this *List) Persist() error {
-	if raw, err := json.MarshalIndent(this.watches, "", "  "); err != nil {
+	if raw, err := json.MarshalIndent(this.repos, "", "  "); err != nil {
 		return err
 	} else if err = ioutil.WriteFile(this.path, raw, 0600); err != nil {
 		return err
@@ -104,7 +114,7 @@ func (this *List) Refresh() error {
 	m := make(map[string]string)
 	if raw, err := ioutil.ReadFile(this.path); err != nil {
 		if os.IsNotExist(err) {
-			this.watches = m
+			this.repos = m
 			return nil
 		} else {
 			return err
@@ -112,15 +122,15 @@ func (this *List) Refresh() error {
 	} else if err = json.Unmarshal(raw, &m); err != nil {
 		return err
 	} else {
-		this.watches = m
+		this.repos = m
 		return nil
 	}
 }
 
 // Remove watched repository by name
 func (this *List) Remove(name string) bool {
-	if _, ok := this.watches[name]; ok {
-		delete(this.watches, name)
+	if _, ok := this.repos[name]; ok {
+		delete(this.repos, name)
 		return true
 	} else {
 		return false
@@ -129,7 +139,7 @@ func (this *List) Remove(name string) bool {
 
 // Watch returns name if path is already watched and empty string if it's not
 func (this *List) Watched(path string) string {
-	for name, watch := range this.watches {
+	for name, watch := range this.repos {
 		if watch == path {
 			return name
 		}

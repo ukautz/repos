@@ -1,67 +1,38 @@
 package commands
 
 import (
-	. "github.com/ukautz/repos/common/debug"
-	"github.com/ukautz/repos/common"
-	"gopkg.in/ukautz/clif.v0"
-	"regexp"
-	"sync"
 	"github.com/cheggaaa/pb"
-	"fmt"
+	"github.com/ukautz/repos/common"
+	. "github.com/ukautz/repos/common/debug"
+	"gopkg.in/ukautz/clif.v0"
+	"sync"
 )
 
 func cmdCheck() *clif.Command {
 	cb := func(c *clif.Command, out clif.Output, lst *common.List) error {
-
-		// determine repo name pattern
-		includeRx := regexp.MustCompile(`.`)
-		if pattern := c.Option("include").String(); pattern != "" {
-			var err error
-			if includeRx, err = regexp.Compile(pattern); err != nil {
-				return fmt.Errorf("Failed to compile include pattern: %s", err)
-			}
-		}
-		var excludeRx *regexp.Regexp
-		if pattern := c.Option("exclude").String(); pattern != "" {
-			var err error
-			if excludeRx, err = regexp.Compile(pattern); err != nil {
-				return fmt.Errorf("Failed to compile exclude pattern: %s", err)
-			}
-		}
-
-		// reduce list of repos
-		all := lst.List()
-		watches := make([]*common.Repo, 0)
-		for _, repo := range all {
-			if !includeRx.MatchString(repo.Name) {
-				Debug(DEBUG3, "Exclude repo %s since not matching include", repo.Name)
-				continue
-			} else if excludeRx != nil && excludeRx.MatchString(repo.Name) {
-				Debug(DEBUG3, "Exclude repo %s since match exclude", repo.Name)
-				continue
-			}
-			watches = append(watches, repo)
-		}
-		if len(watches) == 0 {
+		repos, err := reduceWithRepoFilters(c, lst.List())
+		if err != nil {
+			return err
+		} else if len(repos) == 0 {
 			out.Printf("<warn>No repos found<reset>\n")
 			return nil
 		}
 
 		// starting now
-		out.Printf("Checking <headline>%d<reset> watches\n", len(watches))
-		errs := []*common.Repo{}
-		changed := []*common.Repo{}
-		ahead := []*common.Repo{}
-		behind := []*common.Repo{}
+		out.Printf("Checking <headline>%d<reset> repos\n", len(repos))
+		reposWithError := []*common.Info{}
+		reposWithLocalChanges := []*common.Info{}
+		reposAheadOfRemote := []*common.Info{}
+		reposBehindOfRemote := []*common.Info{}
 		var wg sync.WaitGroup
 		mux := new(sync.Mutex)
-		total := len(watches)
+		total := len(repos)
 		count := 0
 		progress := make(chan string)
 
 		wg.Add(1)
 		if DebugLevel == DEBUG0 {
-			pb := pb.StartNew(len(watches))
+			pb := pb.StartNew(len(repos))
 			go func() {
 				defer wg.Done()
 				for range progress {
@@ -81,26 +52,26 @@ func cmdCheck() *clif.Command {
 		go func() {
 			defer close(progress)
 			var wgCheck sync.WaitGroup
-			for _, repo := range watches {
+			for _, repo := range repos {
 				Debug(DEBUG1, "Checking repo %s", repo.Name)
 				wgCheck.Add(1)
-				go func(repo *common.Repo) {
+				go func(repo *common.Info) {
 					defer wgCheck.Done()
-					var add *[]*common.Repo
+					var add *[]*common.Info
 					if repo.Error != nil {
-						add = &errs
-					} else if changes, err := repo.Watch.Changes(); err != nil {
+						add = &reposWithError
+					} else if changes, err := repo.Repo.Changes(); err != nil {
 						repo.Error = err
-						add = &errs
+						add = &reposWithError
 					} else if changes {
-						add = &changed
-					} else if synced, err := repo.Watch.Synced(); err != nil {
+						add = &reposWithLocalChanges
+					} else if synced, err := repo.Repo.Synced(); err != nil {
 						repo.Error = err
-						add = &errs
+						add = &reposWithError
 					} else if synced == common.SYNC_STATE_AHEAD {
-						add = &ahead
+						add = &reposAheadOfRemote
 					} else if synced == common.SYNC_STATE_BEHIND {
-						add = &behind
+						add = &reposBehindOfRemote
 					}
 					mux.Lock()
 					defer mux.Unlock()
@@ -120,35 +91,35 @@ func cmdCheck() *clif.Command {
 		wg.Wait()
 
 		any := false
-		if len(errs) > 0 {
+		if len(reposWithError) > 0 {
 			any = true
-			out.Printf("\n Found <headline>%d<reset> with <subline>errros<reset>\n", len(errs))
-			for _, watch := range errs {
-				out.Printf("  <info>%s<reset>: <error>%s<reset>\n", watch.Name, watch.Error)
+			out.Printf("\n Found <headline>%d<reset> with <subline>errros<reset>\n", len(reposWithError))
+			for _, repo := range reposWithError {
+				out.Printf("  <info>%s<reset>: <error>%s<reset>\n", repo.Name, repo.Error)
 			}
 		}
-		if len(changed) > 0 {
+		if len(reposWithLocalChanges) > 0 {
 			any = true
-			out.Printf("\n Found <headline>%d<reset> with <subline>local changes<reset>\n", len(changed))
+			out.Printf("\n Found <headline>%d<reset> with <subline>local changes<reset>\n", len(reposWithLocalChanges))
 			out.Printf("  <debug>Eg uncommited changes<reset>\n")
-			for _, watch := range changed {
-				out.Printf("  <info>%s<reset> (%s): <warn>%s<reset>\n", watch.Name, watch.Type, watch.Path)
+			for _, repo := range reposWithLocalChanges {
+				out.Printf("  <info>%s<reset> (%s): <important>%s<reset>\n", repo.Name, repo.Type, repo.Path)
 			}
 		}
-		if len(ahead) > 0 {
+		if len(reposAheadOfRemote) > 0 {
 			any = true
-			out.Printf("\n Found <headline>%d<reset> which are <subline>ahead of local<reset>\n", len(ahead))
-			out.Printf("  <debug>Remote has commits which are not merged into local<reset>\n")
-			for _, watch := range ahead {
-				out.Printf("  <info>%s<reset> (%s): <warn>%s<reset>\n", watch.Name, watch.Type, watch.Path)
+			out.Printf("\n Found <headline>%d<reset> which are <subline>ahead of local<reset>\n", len(reposAheadOfRemote))
+			out.Printf("  <debug>Eg remote has commits which are not merged into local<reset>\n")
+			for _, repo := range reposAheadOfRemote {
+				out.Printf("  <info>%s<reset> (%s): <important>%s<reset>\n", repo.Name, repo.Type, repo.Path)
 			}
 		}
-		if len(behind) > 0 {
+		if len(reposBehindOfRemote) > 0 {
 			any = true
-			out.Printf("\n Found <headline>%d<reset> which are <subline>behind of local<reset>\n", len(behind))
-			out.Printf("  <debug>Local has commits which are not merged with (at least one) remote<reset>\n")
-			for _, watch := range behind {
-				out.Printf("  <info>%s<reset> (%s): <warn>%s<reset>\n", watch.Name, watch.Type, watch.Path)
+			out.Printf("\n Found <headline>%d<reset> which are <subline>behind of local<reset>\n", len(reposBehindOfRemote))
+			out.Printf("  <debug>Eg local has commits which are not merged with (at least one) remote<reset>\n")
+			for _, repo := range reposBehindOfRemote {
+				out.Printf("  <info>%s<reset> (%s): <important>%s<reset>\n", repo.Name, repo.Type, repo.Path)
 			}
 		}
 		if !any {
@@ -158,9 +129,7 @@ func cmdCheck() *clif.Command {
 		return nil
 	}
 
-	return clif.NewCommand("check", "Check all registered repos", cb).
-		NewOption("include", "i", "Regular expression for repos to include, eg '^foo'", "", false, true).
-		NewOption("exclude", "e", "Regular expression for repos to exclude, eg 'bar$'", "", false, true)
+	return addRepoFilterOptions(clif.NewCommand("check", "Check all registered repos", cb))
 }
 
 func init() {

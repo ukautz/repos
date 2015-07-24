@@ -4,7 +4,7 @@ import "fmt"
 
 // Watch is a repository of a certain kind
 type (
-	Watch interface {
+	Repo interface {
 
 		// Changes checks if there are local changes in the repo, which are not committed
 		Changes() (bool, error)
@@ -53,12 +53,12 @@ const (
 )
 
 // watches holds checkers/constructors of specific watch implementations
-var watches = make([]func(path, name string) (Watch, error), 0)
+var watches = make([]func(path, name string) (Repo, error), 0)
 
-// Factory tries to create a new watch from given path. If there is no repo
+// NewWatch tries to create a new watch from given path. If there is no repo
 // found under path (or there is no implementation for the repo kind) an error
 // is returned
-func Factory(path, name string) (Watch, error) {
+func NewRepo(path, name string) (Repo, error) {
 	for _, check := range watches {
 		if watch, err := check(path, name); err != nil {
 			return nil, err

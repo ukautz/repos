@@ -92,7 +92,11 @@ func cmdScan() *clif.Command {
 	}
 
 	return clif.NewCommand("scan", "Scan a directory for repositories", cb).
-		SetDescription("Foo bar baz").
+		SetDescription(strings.Join([]string{
+		"Scan a directory (recursively) for repostories. For each found repository a name,",
+		"derived from the folder name, will be suggested automatically.",
+		"",
+	}, "\n")).
 		NewArgument("directory", "Directory to scan", ".", true, false).
 		NewOption("max-depth", "d", "Max depth to scan (1 = all sub folders, 2 = also subfolders within these, ..) ", "1", false, false).
 		NewOption("include", "i", "Regular expression which names must match to be considered", ".", false, false).
@@ -107,8 +111,8 @@ func addRepo(lst *common.List, dir, prefix string, include, exclude *regexp.Rege
 		out.Printf("Considering directory <info>%s<reset>\n", dir)
 		base := strings.ToLower(filepath.Base(dir))
 		name := prefix + base
-		if _, err := watch.Factory(dir, name); err != nil {
-			out.Printf("<error>Fail: %s<reset>\n\n", err)
+		if _, err := common.NewRepo(dir, name); err != nil {
+			out.Printf("  <warn>%s<reset>\n\n", err)
 			return false
 		}
 		if !include.MatchString(name) {
