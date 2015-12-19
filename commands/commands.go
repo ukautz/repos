@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"gopkg.in/ukautz/clif.v0"
+	"gopkg.in/ukautz/clif.v1"
 )
 
 var (

@@ -4,13 +4,13 @@ import (
 	"github.com/ukautz/repos/commands"
 	"github.com/ukautz/repos/common/debug"
 	"github.com/ukautz/repos/common"
-	"gopkg.in/ukautz/clif.v0"
+	"gopkg.in/ukautz/clif.v1"
 	"os"
 	"path/filepath"
 )
 
 var (
-	Version = "0.5.0"
+	Version = "" // set in make
 )
 
 func addDefaultOptions(cli *clif.Cli) {

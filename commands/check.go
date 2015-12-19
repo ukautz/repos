@@ -1,11 +1,11 @@
 package commands
 
 import (
-	"github.com/cheggaaa/pb"
 	"github.com/ukautz/repos/common"
 	. "github.com/ukautz/repos/common/debug"
-	"gopkg.in/ukautz/clif.v0"
+	"gopkg.in/ukautz/clif.v1"
 	"sync"
+	"fmt"
 )
 
 func cmdCheck() *clif.Command {
@@ -29,16 +29,24 @@ func cmdCheck() *clif.Command {
 		total := len(repos)
 		count := 0
 		progress := make(chan string)
+		var pbs clif.ProgressBarPool
 
 		wg.Add(1)
 		if DebugLevel == DEBUG0 {
-			pb := pb.StartNew(len(repos))
+			pbs = out.ProgressBars()
+			style := clif.CloneProgressBarStyle(clif.ProgressBarStyleUtf8)
+			style.Count = clif.PROGRESS_BAR_ADDON_PREPEND
+			style.Elapsed = clif.PROGRESS_BAR_ADDON_PREPEND
+			style.Estimate = clif.PROGRESS_BAR_ADDON_APPEND
+			style.Percentage = clif.PROGRESS_BAR_ADDON_OFF
+			pbs.Style(style)
+			pbs.Start()
+			pb, _ := pbs.Init("repos", len(repos))
 			go func() {
 				defer wg.Done()
 				for range progress {
 					pb.Increment()
 				}
-				pb.Finish()
 			}()
 		} else {
 			go func() {
@@ -89,38 +97,53 @@ func cmdCheck() *clif.Command {
 			wgCheck.Wait()
 		}()
 		wg.Wait()
+		if pbs != nil {
+			<-pbs.Finish()
+		}
 
 		any := false
 		if len(reposWithError) > 0 {
 			any = true
-			out.Printf("\n Found <headline>%d<reset> with <subline>errros<reset>\n", len(reposWithError))
+			out.Printf("\n- - -\n\n Found <headline>%d<reset> with <subline>errors<reset>\n\n", len(reposWithError))
+			table := out.Table([]string{"Name", "Path", "Error"})
 			for _, repo := range reposWithError {
-				out.Printf("  <info>%s<reset>: <error>%s<reset>\n", repo.Name, repo.Error)
+				table.AddRow([]string{repo.Name, repo.Path, repo.Error.Error()})
+				//out.Printf("  <info>%s<reset>: <error>%s<reset>\n", repo.Name, repo.Error)
 			}
+			fmt.Println(table.Render())
 		}
 		if len(reposWithLocalChanges) > 0 {
 			any = true
-			out.Printf("\n Found <headline>%d<reset> with <subline>local changes<reset>\n", len(reposWithLocalChanges))
-			out.Printf("  <debug>Eg uncommited changes<reset>\n")
+			out.Printf("\n- - -\n\n Found <headline>%d<reset> with <subline>local changes<reset>\n", len(reposWithLocalChanges))
+			out.Printf("  <debug>Eg uncommited changes<reset>\n\n")
+			table := out.Table([]string{"Name", "Type", "Path"})
 			for _, repo := range reposWithLocalChanges {
-				out.Printf("  <info>%s<reset> (%s): <important>%s<reset>\n", repo.Name, repo.Type, repo.Path)
+				table.AddRow([]string{repo.Name, repo.Type, repo.Path})
+				//out.Printf("  <info>%s<reset> (%s): <important>%s<reset>\n", repo.Name, repo.Type, repo.Path)
 			}
+			fmt.Println(table.Render())
 		}
 		if len(reposAheadOfRemote) > 0 {
 			any = true
-			out.Printf("\n Found <headline>%d<reset> which are <subline>ahead of local<reset>\n", len(reposAheadOfRemote))
-			out.Printf("  <debug>Eg remote has commits which are not merged into local<reset>\n")
+			out.Printf("\n- - -\n\n Found <headline>%d<reset> which are <subline>ahead of local<reset>\n", len(reposAheadOfRemote))
+			out.Printf("  <debug>Eg remote has commits which are not merged into local<reset>\n\n")
+			table := out.Table([]string{"Name", "Type", "Path"})
 			for _, repo := range reposAheadOfRemote {
-				out.Printf("  <info>%s<reset> (%s): <important>%s<reset>\n", repo.Name, repo.Type, repo.Path)
+				table.AddRow([]string{repo.Name, repo.Type, repo.Path})
+				//out.Printf("  <info>%s<reset> (%s): <important>%s<reset>\n", repo.Name, repo.Type, repo.Path)
 			}
+			fmt.Println(table.Render())
 		}
 		if len(reposBehindOfRemote) > 0 {
 			any = true
-			out.Printf("\n Found <headline>%d<reset> which are <subline>behind of local<reset>\n", len(reposBehindOfRemote))
-			out.Printf("  <debug>Eg local has commits which are not merged with (at least one) remote<reset>\n")
+			out.Printf("\n- - -\n\n Found <headline>%d<reset> which are <subline>behind of local<reset>\n", len(reposBehindOfRemote))
+			out.Printf("  <debug>Eg local has commits which are not merged with (at least one) remote<reset>\n\n")
+			table := out.Table([]string{"Name", "Type", "Path"})
 			for _, repo := range reposBehindOfRemote {
-				out.Printf("  <info>%s<reset> (%s): <important>%s<reset>\n", repo.Name, repo.Type, repo.Path)
+				table.AddRow([]string{repo.Name, repo.Type, repo.Path})
+				//out.Printf("  <info>%s<reset> (%s): <important>%s<reset>\n", repo.Name, repo.Type, repo.Path)
 			}
+			fmt.Println(table.Render())
 		}
 		if !any {
 			out.Printf(" <success>All is in sync!<reset>\n")

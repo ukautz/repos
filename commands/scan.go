@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 	"github.com/ukautz/repos/common"
-	"gopkg.in/ukautz/clif.v0"
+	"gopkg.in/ukautz/clif.v1"
 	"io/ioutil"
 	"os"
 	"path/filepath"

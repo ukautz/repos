@@ -3,29 +3,36 @@ package commands
 import (
 	"fmt"
 	"github.com/ukautz/repos/common"
-	"gopkg.in/ukautz/clif.v0"
+	"gopkg.in/ukautz/clif.v1"
 )
 
 func cmdShow() *clif.Command {
 	cb := func(out clif.Output, lst *common.List) {
 		watches := lst.List()
 		out.Printf("Found <headline>%d<reset> watches\n", len(watches))
-		max := 0
+
+		rowsWith := make([][]string, 0)
+		rowsWithout := make([][]string, 0)
+		errs := 0
 		for _, watch := range watches {
-			if l := len(watch.Name); l > max {
-				max = l
-			}
-		}
-		m := fmt.Sprintf("%d", max)
-		for _, watch := range watches {
-			out.Printf(" <info>%- "+m+"s<reset> ", watch.Name)
+			row := []string{watch.Name, watch.Type, watch.Path, ""}
 			if watch.Error != nil {
-				out.Printf("<error>%s<reset>")
-			} else {
-				out.Printf("<important>%s<reset>", watch.Type)
+				errs ++
+				row[3] = watch.Error.Error()
 			}
-			out.Printf(" @ %s\n", watch.Path)
+			rowsWith = append(rowsWith, row)
+			rowsWithout = append(rowsWithout, row[0:3])
 		}
+
+		var table *clif.Table
+		if errs > 0 {
+			table = out.Table([]string{"Name", "Type", "Path", "Error"})
+			table.AddRows(rowsWith)
+		} else {
+			table = out.Table([]string{"Name", "Type", "Path"})
+			table.AddRows(rowsWithout)
+		}
+		fmt.Println(table.Render())
 	}
 
 	return clif.NewCommand("show", "Show all registered repos", cb)

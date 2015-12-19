@@ -4,7 +4,7 @@ import (
 	. "github.com/ukautz/repos/common/debug"
 	"regexp"
 	"fmt"
-	"gopkg.in/ukautz/clif.v0"
+	"gopkg.in/ukautz/clif.v1"
 )
 
 func addRepoFilterOptions(c *clif.Command) *clif.Command {
@@ -43,4 +43,8 @@ func reduceWithRepoFilters(c *clif.Command, allRepos []*common.Info) ([]*common.
 	}
 
 	return repos, nil
+}
+
+func init() {
+	clif.DefaultTableStyle = clif.OpenTableStyleLight
 }
