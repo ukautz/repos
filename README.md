@@ -14,7 +14,7 @@ In addition, this tool serves as a demo command line application showcasing [CLI
 Install
 -------
 
-Download Linux amd64 binary [here](https://github.com/ukautz/repos/releases/download/0.0.1/repos_linux_amd64.gz).
+Latest release with binaries for Linux, Mac & Windows can be found [here](https://github.com/ukautz/repos/releases)
 
 ### Build
 
